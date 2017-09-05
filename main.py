@@ -92,13 +92,13 @@ async def on_message(message):
 					user = "_".join(split_message[1:])
 					user_raw = " ".join(split_message[1:])
 					await client.send_message(message.channel, '```Checking if user \''+user_raw+'\' exists```')
-					if osu.check_user(user) == 1:
+					if await osu.check_user(user) == 1:
 						await client.send_message(message.channel, '```User \''+user_raw+'\' exists, adding it to tracking```')
 						with open("tracked_users", "a") as myfile:
 							myfile.write(user+'\n')
 						with open('data/'+user, 'a') as nf:
 							nf.write('[]')
-					elif osu.check_user(user) == -1:
+					elif await osu.check_user(user) == -1:
 						await client.send_message(message.channel, '```Osu servers are laggy atm, try again later```')
 					else:
 						await client.send_message(message.channel, '```User \''+user_raw+'\' not found```')
@@ -126,7 +126,7 @@ async def background_loop():
 		user_file = open('tracked_users', "r")
 		for user_r in user_file:
 			user = user_r[:-1] #Remove newline
-			ret = osu.track_user(user) #see osu.py
+			ret = await osu.track_user(user) #see osu.py
 			if isinstance(ret, tuple): #If ret is tuple, it means success
 				garbage, nbplays, plays = ret #So we extract useful data
 				for x in range(0,nbplays): #And for each play

@@ -3,8 +3,11 @@ import requests
 import json
 from jsondiff import diff
 import jsondiff
+import aiohttp
+import asyncio
 
-def check_user(user):
+
+async def check_user(user):
 	"""
 	This function calls osu api to check if a given user exists
 	It handles spaces and underscore
@@ -14,16 +17,16 @@ def check_user(user):
 	Returns 0 if user not found
 	"""
 	try:
-		r = requests.get('https://osu.ppy.sh/api/get_user?k='+key+'&u='+user+'')
+		async with aiohttp.get('https://osu.ppy.sh/api/get_user?k='+key+'&u='+user+'') as r:
+			if len(await r.text()) > 4:
+				return 1
 	except Exception as e:
 		print("[!ERROR!] In Check user:")
 		print(e)
 		return -1
-	if len(r.content) > 4:
-		return 1
 	return 0
 
-def track_user(user):
+async def track_user(user):
 	"""
 	This function calls osu api to get bests scores of a given user
 	It compares the fresh json with the old one stored as a file in data folder
@@ -37,28 +40,28 @@ def track_user(user):
 	returns -1 if fail
 	"""
 	try:
-		r = requests.get('https://osu.ppy.sh/api/get_user_best?k='+key+'&u='+user+'&limit=100')
-		raw_r = str(r.content, 'utf-8')
-		if len(raw_r) > 4:
-			jr = r.json()
-			with open('data/'+user, 'r') as myfile:
-				jdata = json.load(myfile)
-			if jr != jdata :
-				e = diff(jdata, jr)
-				if jsondiff.insert in e:
-					play = e[jsondiff.insert]
+		async with aiohttp.get('https://osu.ppy.sh/api/get_user_best?k='+key+'&u='+user+'&limit=100')as r:
+			raw_r = await r.text()
+			if len(raw_r) > 4:
+				jr = await r.json()
+				with open('data/'+user, 'r') as myfile:
+					jdata = json.load(myfile)
+				if jr != jdata :
+					e = diff(jdata, jr)
+					if jsondiff.insert in e:
+						play = e[jsondiff.insert]
+						with open('data/'+user, "w") as raw:
+							raw.write(raw_r)
+						return (1,len(e[jsondiff.insert]),play)
 					with open('data/'+user, "w") as raw:
 						raw.write(raw_r)
-					return (1,len(e[jsondiff.insert]),play)
-				with open('data/'+user, "w") as raw:
-					raw.write(raw_r)
 	except Exception as e:
 		print("[!ERROR!] In Track_user:")
 		print(e)
 		return -1
 	return 0
 
-def print_play(play, user):
+async def print_play(play, user):
 	"""
 	Function used to format a play data dict to a string
 	Beatmap data and play data are separated
@@ -69,7 +72,7 @@ def print_play(play, user):
 	and returns the formatted string
 	If this whole process fails it returns -1 too
 	"""
-	map = get_map(str(play['beatmap_id']))
+	map = await get_map(str(play['beatmap_id']))
 	if map == -1:
 		return -1
 	try:
@@ -84,23 +87,23 @@ def print_play(play, user):
 		return -1
 	return bot_str
 
-def get_map(map_id):
+async def get_map(map_id):
 	"""
 	This function gets data of a given beatmap ID on osu api
 	and returns it as a dict created from the parsed json
 	returns dict on success
 	returns -1 on fail
 	"""
-	r = requests.get('https://osu.ppy.sh/api/get_beatmaps?k='+key+'&b='+map_id+'&m=0')
-	raw_r = str(r.content, 'utf-8')
-	if len(raw_r) > 4: #Check if at least json is filled with data
-		try:
-			jr = r.json()
-		except Exception as e:
-			print("[!ERROR!] in get_map:")
-			print(e)
-			return -1
-		return jr[0]
+	async with aiohttp.get('https://osu.ppy.sh/api/get_beatmaps?k='+key+'&b='+map_id+'&m=0') as r:
+		raw_r = await r.text()
+		if len(raw_r) > 4: #Check if at least json is filled with data
+			try:
+				jr = await r.json()
+			except Exception as e:
+				print("[!ERROR!] in get_map:")
+				print(e)
+				return -1
+			return jr[0]
 	return -1
 
 def get_mods(number):
