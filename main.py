@@ -89,24 +89,45 @@ async def on_message(message):
 		elif message.content.startswith('!track'):
 			if botutils.is_admin(message.author.id) :
 				if len(split_message) > 0:
-					user = "_".join(split_message[1:])
+					user = str("_".join(split_message[1:])).lower()
 					user_raw = " ".join(split_message[1:])
 					await client.send_message(message.channel, '```Checking if user \''+user_raw+'\' exists```')
-					if await osu.check_user(user) == 1:
-						await client.send_message(message.channel, '```User \''+user_raw+'\' exists, adding it to tracking```')
-						with open("tracked_users", "a") as myfile:
-							myfile.write(user+'\n')
-						with open('data/'+user, 'a') as nf:
-							nf.write('[]')
-					elif await osu.check_user(user) == -1:
-						await client.send_message(message.channel, '```Osu servers are laggy atm, try again later```')
+					if botutils.check_user_del(user) == 0:
+						if await osu.check_user(user) == 1:
+							await client.send_message(message.channel, '```User \''+user_raw+'\' exists, adding it to tracking```')
+							try:
+								with open("tracked_users", "a") as myfile:
+									myfile.write(user+'\n')
+								with open('data/'+user, 'a') as nf:
+									nf.write('[]')
+								await client.send_message(message.channel, '```User \''+user_raw+'\' Succesfuly added to tracking```')
+							except Exception as e:
+								print('[!ERROR!] In Adduser tracking')
+								print(e)
+						elif await osu.check_user(user) == -1:
+							await client.send_message(message.channel, '```Osu servers are laggy atm, try again later```')
+						else:
+							await client.send_message(message.channel, '```User \''+user_raw+'\' not found```')
 					else:
-						await client.send_message(message.channel, '```User \''+user_raw+'\' not found```')
+						await client.send_message(message.channel, '```User \''+user_raw+'\' already in tracking file```')
 				else :
 					await client.send_message(message.channel, '```Check your syntax with !help !track```')
 			else :
-				await client.send_message(message.channel, '```You need to be Admin of the bot to do this```')
+				await client.send_message(message.channel, '```You need to be Admin of the bot to do this, ask Ayato_k```')
+
 		# ------------------------------------------------- #
+		#
+		# ------------------Show user stats---------------- #
+		#
+		# When this condition is met, it enters a process
+		# used to print statistics for a given user
+		#
+		elif message.content.startswith('!user'):
+			if len(split_message) > 0:
+				user = str("_".join(split_message[1:])).lower()
+				dic_ret = await osu.get_user_info(user)
+				embed = await osu.embed_user_info(dic_ret)
+				await client.send_message(message.channel, embed=embed)
 
 
 async def background_loop():
@@ -114,7 +135,7 @@ async def background_loop():
 	Async function that runs forever
 	It is used to call osu api to check for new scores
 	of the tracked users.
-	the function is set to pause every 3 minutes
+	the function is set to pause every 2 minutes
 	(Refresh rate)
 	I advice you dont change it, it causes the bot to overlap and crash
 	if the refresh rate is too low, i plan on adding threading on this
@@ -122,16 +143,22 @@ async def background_loop():
 	"""
 	await client.wait_until_ready()
 	while not client.is_closed:
-		channel = client.get_channel("INSERT ID OF THE CHANNEL") # Change it
-		user_file = open('tracked_users', "r")
-		for user_r in user_file:
-			user = user_r[:-1] #Remove newline
-			ret = await osu.track_user(user) #see osu.py
-			if isinstance(ret, tuple): #If ret is tuple, it means success
-				garbage, nbplays, plays = ret #So we extract useful data
-				for x in range(0,nbplays): #And for each play
-					await client.send_message(channel, osu.print_play(plays[x][1], user)) # we print it
-		await asyncio.sleep(180) # You cange change rofresh rate here in seconds
+		try:
+			channel = client.get_channel('Channel ID')
+			user_file = open('tracked_users', 'r')
+			for user_r in user_file:
+				user = user_r[:-1]
+				ret = await osu.track_user(user)
+				if isinstance(ret, tuple):
+					garbage, nbplays, plays = ret
+					for x in range(0,nbplays):
+						embed = await osu.print_play(plays[x][1], user)
+						if embed != -1:
+							await client.send_message(channel, embed=embed)
+		except Exception as e:
+			print('in BG Loop')
+			print(e)
+		await asyncio.sleep(120)
 
 client.loop.create_task(background_loop()) # Launches the user check loop
 client.run('INSERT YOUR BOT TOKEN HERE') # Runs the discord client
